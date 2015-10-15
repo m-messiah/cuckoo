@@ -16,6 +16,7 @@ before_install:
     - ./configure && make
     - sudo make install
     - cd ..
+    - sed 's/connection = .*/connection =/' conf/cuckoo.conf
 install:
     - pip install -r requirements.txt
 script:
