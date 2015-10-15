@@ -169,9 +169,6 @@ LOGGING = {
     }
 }
 
-EMAIL = "malware-report@example.com"
-MY_URL = "https://cuckoo.example.com"
-
 # Hack to import local settings.
 try:
     LOCAL_SETTINGS
