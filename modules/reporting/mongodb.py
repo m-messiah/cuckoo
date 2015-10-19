@@ -213,6 +213,14 @@ class MongoDB(Report):
             report["behavior"] = dict(report["behavior"])
             report["behavior"]["processes"] = new_processes
 
+        # FIXME: Bad-ass for unicode
+        def convert2unicode(mydict):
+            for k, v in mydict.iteritems():
+                if isinstance(v, str):
+                    mydict[k] = unicode(v, errors = 'replace')
+                elif isinstance(v, dict):
+                    convert2unicode(v)
+        convert2unicode(report)
         # Store the report and retrieve its object id.
         self.db.analysis.save(report)
         self.conn.close()
