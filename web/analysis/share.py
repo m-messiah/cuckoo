@@ -67,7 +67,7 @@ def sendEset(filename, help_text, email, name):
         filename += ".zip"
         name += ".zip"
 
-    hostUrl = "http://www.esetnod32.ru/support/knowledge_base/new_virus/"
+    hostUrl = "https://www.esetnod32.ru/support/knowledge_base/new_virus/"
     br = Session()
     br.headers.update({'referer': hostUrl})
 
