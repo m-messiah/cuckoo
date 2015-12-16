@@ -11,7 +11,7 @@ from django.conf import settings
 from django.template import RequestContext
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render_to_response
-from django.views.decorators.http import require_safe
+from django.views.decorators.http import require_safe, require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 
 import pymongo

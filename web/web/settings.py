@@ -100,18 +100,7 @@ STATICFILES_DIRS = (
 STATICFILES_FINDERS = (
     'django.contrib.staticfiles.finders.FileSystemFinder',
     'django.contrib.staticfiles.finders.AppDirectoriesFinder',
-<<<<<<< HEAD
-#    'django.contrib.staticfiles.finders.DefaultStorageFinder',
-)
-
-# List of callables that know how to import templates from various sources.
-TEMPLATE_LOADERS = (
-    'django.template.loaders.filesystem.Loader',
-    'django.template.loaders.app_directories.Loader',
-#    'django.template.loaders.eggs.Loader',
-=======
     'django.contrib.staticfiles.finders.DefaultStorageFinder',
->>>>>>> 522d0b7365492d4a7a7619ea285978ab4a89ceda
 )
 
 MIDDLEWARE_CLASSES = (
