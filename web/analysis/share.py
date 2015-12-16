@@ -171,7 +171,7 @@ def sendMicrosoft(filename, help_text, email, name):
         return 0, "Success! Your status is <a href='%s'>here (sha1=%s)</a>" % (response_url, answer['title'])
     else:
         logger.warning("Microsoft error: %s" % response.content)
-        return 1, "Something wrong"
+        return 1, "Something wrong: %s" % response.content
 
 
 def sendMcAfee(filename, help_text, email, name):
