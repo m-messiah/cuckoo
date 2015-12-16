@@ -19,6 +19,7 @@ before_install:
     - sed -i 's/connection = .*/connection =/' conf/cuckoo.conf
 install:
     - pip install -r requirements.txt
+    - ./utils/community.py -wafb monitor && ./utils/community.py -wafb 2.0
 script:
     - python cuckoo.py --debug --test
     #- nosetests
