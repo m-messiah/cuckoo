@@ -1,4 +1,5 @@
-# Copyright (C) 2010-2015 Cuckoo Foundation.
+# Copyright (C) 2010-2013 Claudio Guarnieri.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -19,7 +20,8 @@ from lib.cuckoo.common.constants import CUCKOO_ROOT, CUCKOO_VERSION
 from lib.cuckoo.common.exceptions import CuckooStartupError, CuckooDatabaseError
 from lib.cuckoo.common.exceptions import CuckooOperationalError
 from lib.cuckoo.common.utils import create_folders
-from lib.cuckoo.core.database import Database, TASK_RUNNING, TASK_FAILED_ANALYSIS
+from lib.cuckoo.core.database import Database, TASK_RUNNING
+from lib.cuckoo.core.database import TASK_FAILED_ANALYSIS, TASK_PENDING
 from lib.cuckoo.core.plugins import import_plugin, import_package, list_plugins
 from lib.cuckoo.core.rooter import rooter, vpns
 
@@ -193,10 +195,8 @@ def init_tasks():
     db = Database()
     cfg = Config()
 
-    log.debug("Checking for locked tasks...")
-    tasks = db.list_tasks(status=TASK_RUNNING)
-
-    for task in tasks:
+    log.debug("Checking for locked tasks..")
+    for task in db.list_tasks(status=TASK_RUNNING):
         if cfg.cuckoo.reschedule:
             db.reschedule(task.id)
             log.info("Rescheduled task with ID {0} and "
@@ -204,6 +204,24 @@ def init_tasks():
         else:
             db.set_status(task.id, TASK_FAILED_ANALYSIS)
             log.info("Updated running task ID {0} status to failed_analysis".format(task.id))
+
+    log.debug("Checking for pending service tasks..")
+    for task in db.list_tasks(status=TASK_PENDING, category="service"):
+        db.set_status(task.id, TASK_FAILED_ANALYSIS)
+
+def delete_file(*rel_path):
+    filepath = os.path.join(CUCKOO_ROOT, *rel_path)
+    if not os.path.exists(filepath):
+        return
+
+    try:
+        os.unlink(filepath)
+    except Exception as e:
+        log.warning(
+            "Unable to remove old %s leftover file from before you updated "
+            "your Cuckoo setup to the latest version: %s.",
+            os.path.join(*rel_path), e
+        )
 
 def init_modules(machinery=True):
     """Initializes plugins."""
@@ -220,6 +238,10 @@ def init_modules(machinery=True):
     # Import all signatures.
     import modules.signatures
     import_package(modules.signatures)
+
+    delete_file("modules", "reporting", "maec40.pyc")
+    delete_file("modules", "reporting", "maec41.pyc")
+    delete_file("modules", "reporting", "mmdef.pyc")
 
     # Import all reporting modules.
     import modules.reporting

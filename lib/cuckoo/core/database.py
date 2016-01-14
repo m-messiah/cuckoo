@@ -1,4 +1,5 @@
-# Copyright (C) 2010-2015 Cuckoo Foundation.
+# Copyright (C) 2010-2013 Claudio Guarnieri.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -16,7 +17,7 @@ from lib.cuckoo.common.objects import File, URL
 from lib.cuckoo.common.utils import create_folder, Singleton, classlock, SuperLock
 
 try:
-    from sqlalchemy import create_engine, Column
+    from sqlalchemy import create_engine, Column, not_
     from sqlalchemy import Integer, String, Boolean, DateTime, Enum
     from sqlalchemy import ForeignKey, Text, Index, Table
     from sqlalchemy.ext.declarative import declarative_base
@@ -98,6 +99,15 @@ class Machine(Base):
         @return: JSON data
         """
         return json.dumps(self.to_dict())
+
+    def is_analysis(self):
+        """Is this an analysis machine? Generally speaking all machines are
+        analysis machines, however, this is not the case for service VMs.
+        Please refer to the services auxiliary module."""
+        for tag in self.tags:
+            if tag.name == "service":
+                return
+        return True
 
     def __init__(self, name, label, ip, platform, options, interface,
                  snapshot, resultserver_ip, resultserver_port):
@@ -549,22 +559,22 @@ class Database(object):
             session.close()
 
     @classlock
-    def fetch(self, lock=True, machine=""):
+    def fetch(self, machine=None, service=True):
         """Fetches a task waiting to be processed and locks it for running.
         @return: None or task
         """
         session = self.Session()
-        row = None
         try:
-            if machine != "":
-                row = session.query(Task).filter_by(status=TASK_PENDING).filter(Machine.name == machine).order_by(Task.priority.desc(), Task.added_on.asc()).first()
-            else:
-                row = session.query(Task).filter_by(status=TASK_PENDING).order_by(Task.priority.desc(), Task.added_on.asc()).first()
+            q = session.query(Task).filter_by(status=TASK_PENDING)
 
-            if not row:
-                return None
+            if machine:
+                q = q.filter_by(machine=machine)
 
-            if lock:
+            if not service:
+                q = q.filter(not_(Task.tags.any(name="service")))
+
+            row = q.order_by(Task.priority.desc(), Task.added_on).first()
+            if row:
                 self.set_status(task_id=row.id, status=TASK_RUNNING)
                 session.refresh(row)
 
@@ -796,7 +806,7 @@ class Database(object):
         """
         session = self.Session()
         try:
-            machines = session.query(Machine).filter_by(locked=False).all()
+            machines = session.query(Machine).options(joinedload("tags")).filter_by(locked=False).all()
             return machines
         except SQLAlchemyError as e:
             log.debug("Database error getting available machines: {0}".format(e))
@@ -1025,6 +1035,16 @@ class Database(object):
         return self.add(None, timeout=timeout or 0, priority=999, owner=owner,
                         machine=machine, memory=memory, category="baseline")
 
+    def add_service(self, timeout, owner, tags):
+        """Add a service task to database.
+        @param timeout: selected timeout.
+        @param owner: task owner.
+        @param tags: task tags.
+        @return: cursor or None.
+        """
+        return self.add(None, timeout=timeout, priority=999, owner=owner,
+                        tags=tags, category="service")
+
     @classlock
     def reschedule(self, task_id):
         """Reschedule a task.
@@ -1237,7 +1257,7 @@ class Database(object):
         """
         session = self.Session()
         try:
-            machine = session.query(Machine).options(joinedload("tags")).filter(Machine.name == name).first()
+            machine = session.query(Machine).options(joinedload("tags")).filter_by(name=name).first()
         except SQLAlchemyError as e:
             log.debug("Database error viewing machine: {0}".format(e))
             return None
@@ -1256,7 +1276,7 @@ class Database(object):
         """
         session = self.Session()
         try:
-            machine = session.query(Machine).options(joinedload("tags")).filter(Machine.label == label).first()
+            machine = session.query(Machine).options(joinedload("tags")).filter_by(label=label).first()
         except SQLAlchemyError as e:
             log.debug("Database error viewing machine by label: {0}".format(e))
             return None
@@ -1295,17 +1315,21 @@ class Database(object):
         # introducing a "reporting" status, but this requires annoying
         # database migrations, so leaving that for another day.
         query = """
-            UPDATE tasks SET processing = '%s'
+            UPDATE tasks SET processing = :instance
             WHERE id IN (
                 SELECT id FROM tasks
-                WHERE status = 'completed' AND processing IS NULL
+                WHERE status = :status AND processing IS NULL
                 LIMIT 1 FOR UPDATE
             )
             RETURNING id
         """
 
         try:
-            task = session.execute(query % instance).first()
+            params = {
+                "instance": instance,
+                "status": TASK_COMPLETED,
+            }
+            task = session.execute(query, params).first()
             session.commit()
             return task[0] if task else None
         except SQLAlchemyError as e:
