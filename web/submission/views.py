@@ -1,4 +1,5 @@
-# Copyright (C) 2010-2015 Cuckoo Foundation.
+# Copyright (C) 2010-2013 Claudio Guarnieri.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -112,6 +113,9 @@ def index(request, task_id=None, sha1=None):
 
     if request.POST.get("process_memory"):
         options["procmemdump"] = "yes"
+
+    if request.POST.get("services"):
+        options["services"] = "yes"
 
     db = Database()
     task_ids = []

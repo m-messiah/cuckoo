@@ -1,4 +1,5 @@
-# Copyright (C) 2010-2015 Cuckoo Foundation.
+# Copyright (C) 2010-2013 Claudio Guarnieri.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -94,7 +95,7 @@ class VirtualBox(Machinery):
 
         self._wait_status(label, self.RUNNING)
 
-        # Handle network dumping through the interal VirtualBox functionality.
+        # Handle network dumping through the internal VirtualBox functionality.
         if "nictrace" in machine.options:
             self.dump_pcap(label, task)
 

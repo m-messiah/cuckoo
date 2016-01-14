@@ -1,4 +1,5 @@
-# Copyright (C) 2010-2015 Cuckoo Foundation.
+# Copyright (C) 2010-2013 Claudio Guarnieri.
+# Copyright (C) 2014-2015 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -226,6 +227,15 @@ class AnalysisManager(threading.Thread):
             rooter("forward_disable", self.machine.interface,
                    self.interface, self.machine.ip)
 
+    def wait_finish(self):
+        """Some VMs don't have an actual agent. Mainly those that are used as
+        assistance for an analysis through the services auxiliary module. This
+        method just waits until the analysis is finished rather than actively
+        trying to engage with the Cuckoo Agent."""
+        self.db.guest_set_status(self.task.id, "running")
+        while self.db.guest_get_status(self.task.id) == "running":
+            time.sleep(1)
+
     def guest_manage(self, options):
         # Handle a special case where we're creating a baseline report of this
         # particular virtual machine - a report containing all the results
@@ -304,6 +314,7 @@ class AnalysisManager(threading.Thread):
 
         try:
             unlocked = False
+            self.interface = None
 
             # Mark the selected analysis machine in the database as started.
             guest_log = self.db.guest_start(self.task.id,
@@ -321,8 +332,14 @@ class AnalysisManager(threading.Thread):
             machine_lock.release()
             unlocked = True
 
-            # Run and manage the components inside the guest.
-            self.guest_manage(options)
+            # Run and manage the components inside the guest unless this
+            # machine has the "noagent" option specified (please refer to the
+            # wait_finish() function for more details on this function).
+            if "noagent" not in self.machine.options:
+                self.guest_manage(options)
+            else:
+                self.wait_finish()
+
             succeeded = True
         except CuckooMachineError as e:
             if not unlocked:
@@ -625,7 +642,7 @@ class Scheduler(object):
                         continue
 
             # Have we limited the number of concurrently executing machines?
-            if self.cfg.cuckoo.max_machines_count > 0:
+            if self.cfg.cuckoo.max_machines_count:
                 # Are too many running?
                 if len(machinery.running()) >= self.cfg.cuckoo.max_machines_count:
                     continue
@@ -649,18 +666,29 @@ class Scheduler(object):
             # TODO We should probably move the entire "acquire machine" logic
             # from the Analysis Manager to the Scheduler and then pass the
             # selected machine onto the Analysis Manager instance.
+            task, available = None, False
             for machine in self.db.get_available_machines():
-
                 task = self.db.fetch(machine=machine.name)
                 if task:
-                    log.debug("Processing task #%s", task.id)
-                    self.total_analysis_count += 1
-
-                    # Initialize and start the analysis manager.
-                    analysis = AnalysisManager(task, errors)
-                    analysis.daemon = True
-                    analysis.start()
                     break
+
+                if machine.is_analysis():
+                    available = True
+
+            # We only fetch a new task if at least one of the available
+            # machines is not a "service" machine (again, please refer to the
+            # services auxiliary module for more information on service VMs).
+            if not task and available:
+                task = self.db.fetch(service=False)
+
+            if task:
+                log.debug("Processing task #%s", task.id)
+                self.total_analysis_count += 1
+
+                # Initialize and start the analysis manager.
+                analysis = AnalysisManager(task, errors)
+                analysis.daemon = True
+                analysis.start()
 
             # Deal with errors.
             try:
