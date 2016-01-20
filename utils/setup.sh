@@ -187,12 +187,12 @@ _clone_cuckoo() {
     # Fetch Cuckoo or in the case of a longterm setup, longcuckoo.
     if [ "$LONGTERM" -eq 0 ]; then
         sudo -u cuckoo -i \
-            git clone --bare git://github.com/cuckoosandbox/cuckoo.git
+            git clone --bare https://github.com/cuckoosandbox/cuckoo.git
 
         gitrepo="cuckoo.git"
     else
         sudo -u cuckoo -i \
-            git clone --bare git://github.com/jbremer/longcuckoo.git
+            git clone --bare https://github.com/jbremer/longcuckoo.git
 
         gitrepo="longcuckoo.git"
     fi
@@ -220,6 +220,9 @@ EOF
         sudo -u cuckoo -i \
             git --work-tree /opt/cuckoo --git-dir "$gitrepo" checkout -f master
     fi
+
+    # Add the Suricata reboot crontab entry.
+    (crontab -l ; echo @reboot /opt/cuckoo/utils/suricata.sh)|crontab -
 
     # Delete the cuckoo1 machine that is included in the VirtualBox
     # configuration by default.
@@ -406,6 +409,9 @@ _create_virtual_machines() {
         echo "Creating Virtual Machine $name.."
         sudo -u cuckoo -i vmcloak snapshot "${EGGNAME}_bird" \
             "$name" "192.168.56.$((2+$i))"
+
+        echo "Registering Virtual Machine $name.."
+        sudo -u cuckoo -i vmcloak register "$name" /opt/cuckoo
     done
 
     rm -rf "$VMCLOAKCONF" "$VMTEMP"
