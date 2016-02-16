@@ -140,6 +140,9 @@ def sendMicrosoft(filename, help_text, email, name):
     hostUrl = "https://www.microsoft.com/security/portal/submission/submit.aspx"
     br.headers.update({'referer': hostUrl})
     page = br.get(hostUrl)
+
+    br.get("http://c.microsoft.com/trans_pixel.aspx")  # get additional cookies
+
     page = BeautifulSoup(page.text, 'html.parser')
     form = page.find('form', id='aspnetForm')
 
@@ -147,15 +150,14 @@ def sendMicrosoft(filename, help_text, email, name):
                       for el in form.find_all('input') if el.has_attr('name')])
 
     form_data["ctl00$ctl00$pageContent$leftside$submitterName"] = email
-    text = """I suspect this file contains malware <a
-     href="#"
-     onclick="window.open('../mmpc/shared/glossary.aspx#Malware',
-     'Definitions', 'scrollbars=1,width=1000,height=500');"
-     title="Click here for more details."
-     >(?)</a>"""
-    form_data["ctl00$ctl00$pageContent$leftside$incorrectDetectionRb"] = text
+    form_data["ctl00$ctl00$pageContent$leftside$incorrectDetectionRb"] = "Malware"
     form_data["ctl00$ctl00$pageContent$leftside$submissionComments"] = help_text
-    form_data["ctl00$ctl00$pageContent$leftside$productSelection"] = [0]
+    form_data["ctl00$ctl00$pageContent$leftside$productSelection"] = 0
+    form_data["ctl00$ctl00$Header$oneMscomBlade$ctl04$Src_Source"] = 0
+    form_data["ctl00$ctl00$pageContent$leftside$submitButton"] = "Submit sample"
+    form_data["ctl00$ctl00$Header$oneMscomBlade$ctl04$SearchTextBox"] = ""
+    form_data["__EVENTTARGET"] = ""
+    form_data["__EVENTARGUMENT"] = ""
 
     response = br.post(
         hostUrl, data=form_data,
@@ -163,15 +165,16 @@ def sendMicrosoft(filename, help_text, email, name):
                open(filename, 'rb')})
     response_url = response.url
 
-    response = BeautifulSoup(response.text, 'html.parser')
-    answer = response.find(id="ctl00_ctl00_pageContent_contentTop_ctl00_"
-                              "contenttop_submissionFileGrid_"
-                              "ctl02_HyperlinkFileName")
-    if answer:
-        return 0, "Success! Your status is <a href='%s'>here (sha1=%s)</a>" % (response_url, answer['title'])
+    text = response.text.encode('utf-8')
+
+    if text.find("This sample contains the following files") != -1:
+        return 0, "Success! Your status is <a href='%s'>here</a>" % (response_url)
+    elif text.find('<title>Submit Sample - Maximum file size exceeded</title>') != -1:
+        logger.warning("Microsoft error: Maximum file size exceeded")
+        return 1, "Maximum file size exceeded"
     else:
-        logger.warning("Microsoft error: %s" % response.content)
-        return 1, "Something wrong: %s" % response.content
+        logger.warning("Microsoft error: %s" % text)
+        return 1, "Something wrong: %s" % text
 
 
 def sendMcAfee(filename, help_text, email, name):
