@@ -8,7 +8,7 @@ from django.conf.urls import url
 
 urlpatterns = [
     url(r"^$", views.index),
-    url(r"^(?P<task_id>\d+)/$", views.report),
+    url(r"^(?P<task_id>\d+):(?P<task_hash>\w+)/$", views.report),
     url(r"^latest/$", views.latest_report),
     url(r"^remove/(?P<task_id>\d+)/$", views.remove),
     url(r"^chunk/(?P<task_id>\d+)/(?P<pid>\d+)/(?P<pagenum>\d+)/$",
