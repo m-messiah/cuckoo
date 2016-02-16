@@ -1,5 +1,5 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2015 Cuckoo Foundation.
+# Copyright (C) 2014-2016 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -276,6 +276,9 @@ class Pcap(object):
             except IndexError:
                 return False
 
+            # DNS RR type mapping.
+            # See: http://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-4
+            # See: https://github.com/kbandla/dpkt/blob/master/dpkt/dns.py#L42
             query["request"] = q_name
             if q_type == dpkt.dns.DNS_A:
                 query["type"] = "A"
@@ -297,9 +300,11 @@ class Pcap(object):
                 query["type"] = "TXT"
             elif q_type == dpkt.dns.DNS_SRV:
                 query["type"] = "SRV"
+            elif q_type == dpkt.dns.DNS_ANY:
+                # For example MDNS requests have q_type=255.
+                query["type"] = "All"
             else:
                 # Some requests are not parsed by dpkt.
-                # For example MDNS requests have q_type=255.
                 query["type"] = "None"
 
             # DNS answer.
@@ -756,14 +761,15 @@ class NetworkAnalysis(Processing):
             pcap_path = sorted_path
 
             # Sorted PCAP file hash.
-            results["sorted_pcap_sha256"] = File(sorted_path).get_sha256()
+            if os.path.exists(sorted_path):
+                results["sorted_pcap_sha256"] = File(sorted_path).get_sha256()
         else:
             pcap_path = self.pcap_path
 
         if HAVE_DPKT:
             results.update(Pcap(pcap_path).run())
 
-        if HAVE_HTTPREPLAY:
+        if HAVE_HTTPREPLAY and os.path.exists(pcap_path):
             try:
                 results.update(Pcap2(pcap_path, self.get_tlsmaster()).run())
             except:

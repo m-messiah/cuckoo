@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2015 Cuckoo Foundation.
+# Copyright (C) 2014-2016 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -218,8 +218,10 @@ def tasks_reschedule(task_id):
     if not db.view_task(task_id):
         return json_error(404, "There is no analysis with the specified ID")
 
-    if db.reschedule(task_id):
+    new_task_id = db.reschedule(task_id)
+    if new_task_id:
         response["status"] = "OK"
+        response["task_id"] = new_task_id
     else:
         return json_error(500, "An error occurred while trying to "
                           "reschedule the task")

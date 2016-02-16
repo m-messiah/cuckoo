@@ -1,8 +1,9 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2015 Cuckoo Foundation.
+# Copyright (C) 2014-2016 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
+import errno
 import os
 import socket
 import select
@@ -53,14 +54,19 @@ class ResultServer(SocketServer.ThreadingTCPServer, object):
                                                          *args,
                                                          **kwargs)
             except Exception as e:
-                # In Linux /usr/include/asm-generic/errno-base.h.
-                # EADDRINUSE  98 (Address already in use)
-                # In Mac OS X or FreeBSD:
-                # EADDRINUSE 48 (Address already in use)
-                if e.errno == 98 or e.errno == 48:
+                if e.errno == errno.EADDRINUSE:
                     log.warning("Cannot bind ResultServer on port %s, "
                                 "trying another port.", self.port)
                     self.port += 1
+                elif e.errno == errno.EADDRNOTAVAIL:
+                    raise CuckooCriticalError(
+                        "Unable to bind ResultServer on %s:%s %s. This "
+                        "usually happens when you start Cuckoo without "
+                        "bringing up the virtual interface associated with "
+                        "the ResultServer IP address. Please refer to "
+                        "http://docs.cuckoosandbox.org/en/latest/faq/#troubles-problem"
+                        " for more information." % (ip, self.port, e)
+                    )
                 else:
                     raise CuckooCriticalError("Unable to bind ResultServer on "
                                               "{0}:{1}: {2}".format(
@@ -128,6 +134,12 @@ class ResultHandler(SocketServer.BaseRequestHandler):
         self.pid, self.ppid, self.procname = None, None, None
         self.server.register_handler(self)
 
+        if hasattr(select, "poll"):
+            self.poll = select.poll()
+            self.poll.register(self.request, select.POLLIN)
+        else:
+            self.poll = None
+
     def finish(self):
         self.done_event.set()
 
@@ -140,9 +152,14 @@ class ResultHandler(SocketServer.BaseRequestHandler):
         while True:
             if self.end_request.isSet():
                 return False
-            rs, _, _ = select.select([self.request], [], [], 1)
-            if rs:
-                return True
+
+            if self.poll:
+                if self.poll.poll(1000):
+                    return True
+            else:
+                rs, _, _ = select.select([self.request], [], [], 1)
+                if rs:
+                    return True
 
     def seek(self, pos):
         pass

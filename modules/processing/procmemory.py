@@ -1,13 +1,16 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2015 Cuckoo Foundation.
+# Copyright (C) 2014-2016 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
+import logging
 import os
 import struct
 
 from lib.cuckoo.common.abstracts import Processing
 from lib.cuckoo.common.objects import File
+
+log = logging.getLogger(__name__)
 
 PAGE_READONLY = 0x00000002
 PAGE_READWRITE = 0x00000004
@@ -114,6 +117,12 @@ class ProcessMemory(Processing):
 
                 if self.options.get("idapro"):
                     self.create_idapy(proc)
+                    
+                if self.options.get("dump_delete"):
+                    try:
+                        os.remove(dump_path)
+                    except OSError:
+                        log.error("Unable to delete memory dump file at path \"%s\" ", dump_path)
 
                 results.append(proc)
 

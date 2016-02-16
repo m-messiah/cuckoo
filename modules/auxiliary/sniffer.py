@@ -1,5 +1,5 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2015 Cuckoo Foundation.
+# Copyright (C) 2014-2016 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -59,30 +59,31 @@ class Sniffer(Auxiliary):
         pargs.extend(["-w", file_path])
         pargs.extend(["host", self.machine.ip])
 
-        # Do not capture XMLRPC agent traffic.
-        pargs.extend([
-            "and", "not", "(",
-            "dst", "host", self.machine.ip, "and",
-            "dst", "port", str(CUCKOO_GUEST_PORT),
-            ")", "and", "not", "(",
-            "src", "host", self.machine.ip, "and",
-            "src", "port", str(CUCKOO_GUEST_PORT),
-            ")",
-        ])
+        if self.task.options.get("sniffer.debug") != "1":
+            # Do not capture Agent traffic.
+            pargs.extend([
+                "and", "not", "(",
+                "dst", "host", self.machine.ip, "and",
+                "dst", "port", str(CUCKOO_GUEST_PORT),
+                ")", "and", "not", "(",
+                "src", "host", self.machine.ip, "and",
+                "src", "port", str(CUCKOO_GUEST_PORT),
+                ")",
+            ])
 
-        # Do not capture ResultServer traffic.
-        pargs.extend([
-            "and", "not", "(",
-            "dst", "host", self.machine.resultserver_ip, "and",
-            "dst", "port", self.machine.resultserver_port,
-            ")", "and", "not", "(",
-            "src", "host", self.machine.resultserver_ip, "and",
-            "src", "port", self.machine.resultserver_port,
-            ")",
-        ])
+            # Do not capture ResultServer traffic.
+            pargs.extend([
+                "and", "not", "(",
+                "dst", "host", self.machine.resultserver_ip, "and",
+                "dst", "port", self.machine.resultserver_port,
+                ")", "and", "not", "(",
+                "src", "host", self.machine.resultserver_ip, "and",
+                "src", "port", self.machine.resultserver_port,
+                ")",
+            ])
 
-        if bpf:
-            pargs.extend(["and", "(", bpf, ")"])
+            if bpf:
+                pargs.extend(["and", "(", bpf, ")"])
 
         try:
             self.proc = subprocess.Popen(pargs)

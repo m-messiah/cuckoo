@@ -1,5 +1,5 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2015 Cuckoo Foundation.
+# Copyright (C) 2014-2016 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -389,8 +389,20 @@ class GuestManager(object):
             self.old.start_analysis(options, monitor)
             return
 
+        try:
+            version = r.json().get("version")
+        except:
+            log.critical(
+                "We were unable to detect either the Old or New Agent in the "
+                "Guest VM, are you sure you have set it up correctly? Please "
+                "go through the documentation once more and otherwise inform "
+                "the Cuckoo Developers of your issue."
+            )
+            self.db.guest_set_status(self.task_id, "failed")
+            return
+
         log.info("Guest is running Cuckoo Agent %s (id=%s, ip=%s)",
-                 r.json().get("version"), self.vmid, self.ipaddr)
+                 version, self.vmid, self.ipaddr)
 
         # Obtain the environment variables.
         self.query_environ()

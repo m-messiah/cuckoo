@@ -1,17 +1,18 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2015 Cuckoo Foundation.
+# Copyright (C) 2014-2016 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
 import sys
 import re
 import os
+import urllib
 
 from django.conf import settings
 from django.template import RequestContext
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import render_to_response
-from django.views.decorators.http import require_safe, require_http_methods
+from django.shortcuts import render, redirect
+from django.views.decorators.http import require_safe
 from django.views.decorators.csrf import csrf_exempt
 
 import pymongo
@@ -26,9 +27,7 @@ from lib.cuckoo.common.constants import CUCKOO_ROOT
 import modules.processing.network as network
 from share import ANTIVIRUSES
 
-
-results_db = pymongo.MongoClient(settings.MONGO_HOST,
-                                 settings.MONGO_PORT)[settings.MONGO_DB]
+results_db = settings.MONGO
 fs = GridFS(results_db)
 
 
@@ -65,9 +64,11 @@ def index(request):
 
             analyses_urls.append(new)
 
-    return render_to_response("analysis/index.html",
-                              {"files": analyses_files, "urls": analyses_urls},
-                              context_instance=RequestContext(request))
+    return render(request, "analysis/index.html", {
+        "files": analyses_files,
+        "urls": analyses_urls,
+    })
+
 
 @require_safe
 def pending(request):
@@ -78,9 +79,10 @@ def pending(request):
     for task in tasks:
         pending.append(task.to_dict())
 
-    return render_to_response("analysis/pending.html",
-                              {"tasks": pending},
-                              context_instance=RequestContext(request))
+    return render(request, "analysis/pending.html", {
+        "tasks": pending,
+    })
+
 
 @require_safe
 def chunk(request, task_id, pid, pagenum):
@@ -122,9 +124,10 @@ def chunk(request, task_id, pid, pagenum):
     else:
         chunk = dict(calls=[])
 
-    return render_to_response("analysis/behavior/_chunk.html",
-                              {"chunk": chunk},
-                              context_instance=RequestContext(request))
+    return render(request, "analysis/behavior/_chunk.html", {
+        "chunk": chunk,
+    })
+
 
 @require_safe
 def filtered_chunk(request, task_id, pid, category):
@@ -151,7 +154,8 @@ def filtered_chunk(request, task_id, pid, category):
     if not record:
         raise ObjectDoesNotExist
 
-    # Extract embedded document related to your process from response collection.
+    # Extract embedded document
+    # related to your process from response collection.
     process = None
     for pdict in record["behavior"]["processes"]:
         if pdict["pid"] == int(pid):
@@ -166,16 +170,18 @@ def filtered_chunk(request, task_id, pid, category):
         "calls": [],
     }
 
-    # Populate dict, fetching data from all calls and selecting only appropriate category.
+    # Populate dict, fetching data from all calls
+    # and selecting only appropriate category.
     for call in process["calls"]:
         chunk = results_db.calls.find_one({"_id": call})
         for call in chunk["calls"]:
             if call["category"] == category:
                 filtered_process["calls"].append(call)
 
-    return render_to_response("analysis/behavior/_chunk.html",
-                              {"chunk": filtered_process},
-                              context_instance=RequestContext(request))
+    return render(request, "analysis/behavior/_chunk.html", {
+        "chunk": filtered_process,
+    })
+
 
 @csrf_exempt
 def search_behavior(request, task_id):
@@ -228,24 +234,27 @@ def search_behavior(request, task_id):
                 "signs": process_results
             })
 
-    return render_to_response("analysis/behavior/_search_results.html",
-                              {"results": results},
-                              context_instance=RequestContext(request))
+    return render(request, "analysis/behavior/_search_results.html", {
+        "results": results,
+    })
+
 
 @require_safe
 def report(request, task_id, task_hash):
-    report = results_db.analysis.find_one({"info.id": int(task_id)}, sort=[("_id", pymongo.DESCENDING)])
+    report = results_db.analysis.find_one(
+        {"info.id": int(task_id)}, sort=[("_id", pymongo.DESCENDING)]
+    )
 
     if not report:
-        return render_to_response(
-            "error.html",
-            {"error": "The specified analysis does not exist"},
-            context_instance=RequestContext(request))
+        return render(request, "error.html", {
+            "error": "The specified analysis does not exist",
+        })
 
-    if report['info']['category'] == 'file' and task_hash != report['target']['file']['md5']:
-        return render_to_response("error.html",
-                                  {"error": "File hash is wrong"},
-                                  context_instance=RequestContext(request))
+    if (report['info']['category'] == 'file' and
+            task_hash != report['target']['file']['md5']):
+        return render(request, "error.html", {
+            "error": "File hash is wrong",
+        })
 
     # Creating dns information dicts by domain and ip.
     if "network" in report and "domains" in report["network"]:
@@ -265,17 +274,19 @@ def report(request, task_id, task_hash):
     else:
         HAVE_HTTPREPLAY = False
 
-    return render_to_response("analysis/report.html",
-                              {"analysis": report,
-                               "domainlookups": domainlookups,
-                               "iplookups": iplookups,
-                               "HAVE_HTTPREPLAY": HAVE_HTTPREPLAY},
-                              context_instance=RequestContext(request))
+    return render(request, "analysis/report.html", {
+        "analysis": report,
+        "domainlookups": domainlookups,
+        "iplookups": iplookups,
+        "HAVE_HTTPREPLAY": HAVE_HTTPREPLAY,
+    })
+
 
 @require_safe
 def latest_report(request):
     rep = results_db.analysis.find_one({}, sort=[("_id", pymongo.DESCENDING)])
     return report(request, rep["info"]["id"] if rep else 0)
+
 
 @require_safe
 def file(request, category, object_id):
@@ -297,9 +308,9 @@ def file(request, category, object_id):
 
         return response
     else:
-        return render_to_response("error.html",
-                                  {"error": "File not found"},
-                                  context_instance=RequestContext(request))
+        return render(request, "error.html", {
+            "error": "File not found",
+        })
 
 moloch_mapper = {
     "ip": "ip == %s",
@@ -314,9 +325,9 @@ moloch_mapper = {
 @require_safe
 def moloch(request, **kwargs):
     if not settings.MOLOCH_ENABLED:
-        return render_to_response("error.html",
-                                  {"error": "Moloch is not enabled!"},
-                                  context_instance=RequestContext(request))
+        return render(request, "error.html", {
+            "error": "Moloch is not enabled!",
+        })
 
     query = []
     for key, value in kwargs.items():
@@ -348,222 +359,149 @@ def full_memory_dump_file(request, analysis_number):
         response["Content-Disposition"] = "attachment; filename=memory.dmp"
         return response
     else:
-        return render_to_response("error.html",
-                                  {"error": "File not found"},
-                                  context_instance=RequestContext(request))
+        return render(request, "error.html", {
+            "error": "File not found",
+        })
 
-@require_http_methods(["GET", "POST"])
+
+def _search_helper(obj, k, value):
+    r = []
+
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            r += _search_helper(v, k, value)
+
+    if isinstance(obj, (tuple, list)):
+        for v in obj:
+            r += _search_helper(v, k, value)
+
+    if isinstance(obj, basestring):
+        if re.search(value, obj, re.I):
+            r.append((k, obj))
+
+    return r
+
+
+@csrf_exempt
 def search(request):
-    if "search" not in request.POST:
-        return render_to_response("analysis/search.html",
-                                  {"analyses": None,
-                                   "term": None,
-                                   "error": None},
-                                  context_instance=RequestContext(request))
+    """New Search API using ElasticSearch as backend."""
+    if request.method == "GET":
+        return render(request, "analysis/search.html")
 
-    search = request.POST["search"].strip()
-    if ":" in search:
-        term, value = search.split(":", 1)
-    else:
-        term, value = "", search
+    value = request.POST["search"]
 
-    if term:
-        # Check on search size.
-        if len(value) < 3:
-            return render_to_response(
-                "analysis/search.html",
-                {"analyses": None,
-                 "term": request.POST["search"],
-                 "error": "Search term too short, "
-                          "minimum 3 characters required"},
-                context_instance=RequestContext(request))
-        # name:foo or name: foo
-        value = value.lstrip()
+    match_value = ".*".join(re.split("[^a-zA-Z0-9]+", value.lower()))
 
-        # Search logic.
-        if term == "name":
-            records = results_db.analysis.find(
-                {"target.file.name": {"$regex": value, "$options": "-i"}}
-            ).sort([["_id", -1]])
-        elif term == "type":
-            records = results_db.analysis.find(
-                {"target.file.type": {"$regex": value, "$options": "-i"}}
-            ).sort([["_id", -1]])
-        elif term == "string":
-            records = results_db.analysis.find(
-                {"strings": {"$regex": value, "$options": "-1"}}
-            ).sort([["_id", -1]])
-        elif term == "ssdeep":
-            records = results_db.analysis.find(
-                {"target.file.ssdeep": {"$regex": value, "$options": "-i"}}
-            ).sort([["_id", -1]])
-        elif term == "crc32":
-            records = results_db.analysis.find(
-                {"target.file.crc32": value}).sort([["_id", -1]])
-        elif term == "file":
-            records = results_db.analysis.find(
-                {"behavior.summary.files": {"$regex": value, "$options": "-i"}}
-            ).sort([["_id", -1]])
-        elif term == "key":
-            records = results_db.analysis.find(
-                {"behavior.summary.keys": {"$regex": value, "$options": "-i"}}
-            ).sort([["_id", -1]])
-        elif term == "mutex":
-            records = results_db.analysis.find(
-                {"behavior.summary.mutexes": {"$regex": value,
-                                              "$options": "-i"}}
-            ).sort([["_id", -1]])
-        elif term == "domain":
-            records = results_db.analysis.find(
-                {"network.domains.domain": {"$regex": value, "$options": "-i"}}
-            ).sort([["_id", -1]])
-        elif term == "ip":
-            records = results_db.analysis.find(
-                {"network.hosts": value}).sort([["_id", -1]])
-        elif term == "signature":
-            records = results_db.analysis.find(
-                {"signatures.description": {"$regex": value, "$options": "-i"}}
-            ).sort([["_id", -1]])
-        elif term == "url":
-            records = results_db.analysis.find(
-                {"target.url": value}).sort([["_id", -1]])
-        elif term == "imphash":
-            records = results_db.analysis.find(
-                {"static.pe_imphash": value}).sort([["_id", -1]])
-        else:
-            return render_to_response(
-                "analysis/search.html",
-                {"analyses": None,
-                 "term": request.POST["search"],
-                 "error": "Invalid search term: %s" % term},
-                context_instance=RequestContext(request))
-    else:
-        value = value.lower()
+    r = settings.ELASTIC.search(body={
+        "query": {
+            "query_string": {
+                "query": '"%s"*' % value,
+            },
+        },
+    })
 
-        if re.match(r"^([a-fA-F\d]{32})$", value):
-            records = results_db.analysis.find(
-                {"target.file.md5": value}).sort([["_id", -1]])
-        elif re.match(r"^([a-fA-F\d]{40})$", value):
-            records = results_db.analysis.find(
-                {"target.file.sha1": value}).sort([["_id", -1]])
-        elif re.match(r"^([a-fA-F\d]{64})$", value):
-            records = results_db.analysis.find(
-                {"target.file.sha256": value}).sort([["_id", -1]])
-        elif re.match(r"^([a-fA-F\d]{128})$", value):
-            records = results_db.analysis.find(
-                {"target.file.sha512": value}).sort([["_id", -1]])
-        else:
-            return render_to_response(
-                "analysis/search.html",
-                {"analyses": None,
-                 "term": None,
-                 "error": "Unable to recognize the search syntax"},
-                context_instance=RequestContext(request))
-
-    # Get data from cuckoo db.
-    db = Database()
     analyses = []
-
-    for result in records:
-        new = db.view_task(result["info"]["id"])
-
-        if not new:
+    for hit in r["hits"]["hits"]:
+        # Find the actual matches in this hit and limit to 8 matches.
+        matches = _search_helper(hit, "none", match_value)
+        if not matches:
             continue
 
-        new = new.to_dict()
+        analyses.append({
+            "task_id": hit["_index"].split("-")[-1],
+            "matches": matches[:16],
+            "total": max(len(matches)-16, 0),
+        })
 
-        if result["info"]["category"] == "file":
-            if new["sample_id"]:
-                sample = db.view_sample(new["sample_id"])
-                if sample:
-                    new["sample"] = sample.to_dict()
+    if request.POST.get("raw"):
+        return render(request, "analysis/search_results.html", {
+            "analyses": analyses,
+            "term": request.POST["search"],
+        })
 
-        analyses.append(new)
+    return render(request, "analysis/search.html", {
+        "analyses": analyses,
+        "term": request.POST["search"],
+        "error": None,
+    })
 
-    return render_to_response("analysis/search.html",
-                              {"analyses": analyses,
-                               "term": request.POST["search"],
-                               "error": None},
-                              context_instance=RequestContext(request))
 
 @require_safe
 def remove(request, task_id):
     """Remove an analysis.
     @todo: remove folder from storage.
     """
-    anals = results_db.analysis.find({"info.id": int(task_id)})
+    analyses = results_db.analysis.find({"info.id": int(task_id)})
 
-    # Checks if more analysis found with the same ID,
-    # like if process.py was run manually.
-    if anals.count() > 1:
-        message = ("Multiple tasks with this ID deleted, "
-                   "thanks for all the fish. "
-                   "(The specified analysis was duplicated in mongo)")
-    elif anals.count() == 1:
+    # Checks if more analysis found with the same ID, like if process.py
+    # was run manually.
+    if analyses.count() > 1:
+        message = (
+            "Multiple tasks with this ID deleted, thanks for all the fish "
+            "(the specified analysis was present multiple times in mongo)."
+        )
+    elif analyses.count() == 1:
         message = "Task deleted, thanks for all the fish."
 
-    if anals.count() > 0:
-        # Delete dups too.
-        for analysis in anals:
-            # Delete sample if not used.
-            if "file_id" in analysis["target"]:
-                if results_db.analysis.find(
-                        {"target.file_id": ObjectId(
-                            analysis["target"]["file_id"])}).count() == 1:
-                    fs.delete(ObjectId(analysis["target"]["file_id"]))
+    if not analyses.count():
+        return render(request, "error.html", {
+            "error": "The specified analysis does not exist",
+        })
 
-            # Delete screenshots.
-            for shot in analysis["shots"]:
-                if results_db.analysis.find(
-                        {"shots": ObjectId(shot)}).count() == 1:
-                    fs.delete(ObjectId(shot))
+    for analysis in analyses:
+        # Delete sample if not used.
+        if "file_id" in analysis["target"]:
+            if results_db.analysis.find(
+                {"target.file_id": ObjectId(analysis["target"]["file_id"])}
+            ).count() == 1:
+                fs.delete(ObjectId(analysis["target"]["file_id"]))
 
-            # Delete network pcap.
-            if ("pcap_id" in analysis["network"] and
-                results_db.analysis.find(
-                    {"network.pcap_id": ObjectId(
-                        analysis["network"]["pcap_id"])}).count() == 1):
-                fs.delete(ObjectId(analysis["network"]["pcap_id"]))
+        # Delete screenshots.
+        for shot in analysis["shots"]:
+            if results_db.analysis.find(
+                    {"shots": ObjectId(shot)}).count() == 1:
+                fs.delete(ObjectId(shot))
 
-            # Delete sorted pcap
-            if ("sorted_pcap_id" in analysis["network"] and
-                results_db.analysis.find(
-                    {"network.sorted_pcap_id": ObjectId(
-                        analysis["network"]["sorted_pcap_id"])}).count() == 1):
-                fs.delete(ObjectId(analysis["network"]["sorted_pcap_id"]))
+        # Delete network pcap.
+        if "pcap_id" in analysis["network"] and results_db.analysis.find(
+                {"network.pcap_id": ObjectId(analysis["network"]["pcap_id"])}
+        ).count() == 1:
+            fs.delete(ObjectId(analysis["network"]["pcap_id"]))
 
-            # Delete mitmproxy dump.
-            if "mitmproxy_id" in analysis["network"] and results_db.analysis.find({"network.mitmproxy_id": ObjectId(analysis["network"]["mitmproxy_id"])}).count() == 1:
-                fs.delete(ObjectId(analysis["network"]["mitmproxy_id"]))
+        # Delete sorted pcap
+        if "sorted_pcap_id" in analysis["network"] and results_db.analysis.find(
+                {"network.sorted_pcap_id": ObjectId(
+                    analysis["network"]["sorted_pcap_id"])}).count() == 1:
+            fs.delete(ObjectId(analysis["network"]["sorted_pcap_id"]))
 
-            # Delete dropped.
-            for drop in analysis["dropped"]:
-                if ("object_id" in drop and
-                    results_db.analysis.find(
-                        {"dropped.object_id": ObjectId(
-                            drop["object_id"])}).count() == 1):
-                    fs.delete(ObjectId(drop["object_id"]))
+        # Delete mitmproxy dump.
+        if "mitmproxy_id" in analysis["network"] and results_db.analysis.find(
+                {"network.mitmproxy_id": ObjectId(
+                    analysis["network"]["mitmproxy_id"])}).count() == 1:
+            fs.delete(ObjectId(analysis["network"]["mitmproxy_id"]))
 
-            # Delete calls.
-            for process in analysis.get("behavior", {}).get("processes", []):
-                for call in process["calls"]:
-                    results_db.calls.remove({"_id": ObjectId(call)})
+        # Delete dropped.
+        for drop in analysis["dropped"]:
+            if "object_id" in drop and results_db.analysis.find(
+                    {"dropped.object_id": ObjectId(drop["object_id"])}
+            ).count() == 1:
+                fs.delete(ObjectId(drop["object_id"]))
 
-            # Delete analysis data.
-            results_db.analysis.remove({"_id": ObjectId(analysis["_id"])})
-    else:
-        return render_to_response(
-            "error.html",
-            {"error": "The specified analysis does not exist"},
-            context_instance=RequestContext(request))
+        # Delete calls.
+        for process in analysis.get("behavior", {}).get("processes", []):
+            for call in process["calls"]:
+                results_db.calls.remove({"_id": ObjectId(call)})
+
+        # Delete analysis data.
+        results_db.analysis.remove({"_id": ObjectId(analysis["_id"])})
 
     # Delete from SQL db.
     db = Database()
     db.delete_task(task_id)
 
-    return render_to_response("success.html",
-                              {"message": message},
-                              context_instance=RequestContext(request))
+    return render(request, "success.html", {
+        "message": message,
+    })
 
 @require_safe
 def pcapstream(request, task_id, conntuple):
@@ -586,10 +524,9 @@ def pcapstream(request, task_id, conntuple):
         sort=[("_id", pymongo.DESCENDING)])
 
     if not conndata:
-        return render_to_response(
-            "standalone_error.html",
-            {"error": "The specified analysis does not exist"},
-            context_instance=RequestContext(request))
+        return render(request, "standalone_error.html", {
+            "error": "The specified analysis does not exist",
+        })
 
     try:
         if proto == "udp":
@@ -605,21 +542,17 @@ def pcapstream(request, task_id, conntuple):
         stream = conns[0]
         offset = stream["offset"]
     except:
-        return render_to_response(
-            "standalone_error.html",
-            {"error": "Could not find the requested stream"},
-            context_instance=RequestContext(request))
+        return render(request, "standalone_error.html", {
+            "error": "Could not find the requested stream",
+        })
 
     try:
         fobj = fs.get(conndata["network"]["sorted_pcap_id"])
-        # Gridfs gridout has no fileno(),
-        # which is needed by dpkt pcap reader for NOTHING.
         setattr(fobj, "fileno", lambda: -1)
     except:
-        return render_to_response(
-            "standalone_error.html",
-            {"error": "The required sorted PCAP does not exist"},
-            context_instance=RequestContext(request))
+        return render(request, "standalone_error.html", {
+            "error": "The required sorted PCAP does not exist",
+        })
 
     packets = list(network.packets_for_stream(fobj, offset))
     return JsonResponse(packets, safe=False)
@@ -631,10 +564,8 @@ def share(request, av_name, task_id):
                                           sort=[("_id", pymongo.DESCENDING)])
 
     if not report:
-        return render_to_response(
-            "error.html",
-            {"error": "The specified analysis does not exist"},
-            context_instance=RequestContext(request))
+        return render(request, "error.html",
+                      {"error": "The specified analysis does not exist"})
 
     file_info = report["target"]["file"]
     help_text = ("Additional information at "
@@ -651,6 +582,4 @@ def share(request, av_name, task_id):
     else:
         result = (2, "%s sender not implemented" % av_name)
 
-    return render_to_response("analysis/share.html",
-                              {"result": result},
-                              context_instance=RequestContext(request))
+    return render(request, "analysis/share.html", {"result": result})

@@ -1,5 +1,5 @@
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2015 Cuckoo Foundation.
+# Copyright (C) 2014-2016 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -206,18 +206,38 @@ class AnalysisManager(threading.Thread):
 
         if route == "none":
             self.interface = None
+            self.rt_table = None
         elif route == "internet" and self.cfg.routing.internet != "none":
             self.interface = self.cfg.routing.internet
+            self.rt_table = self.cfg.routing.rt_table
         elif route in vpns:
             self.interface = vpns[route].interface
+            self.rt_table = vpns[route].rt_table
         else:
             log.warning("Unknown network routing destination specified, "
                         "ignoring routing for this analysis: %r", route)
             self.interface = None
+            self.rt_table = None
+
+        # Check if the network interface is still available. If a VPN dies for
+        # some reason, its tunX interface will no longer be available.
+        if self.interface and not rooter("nic_available", self.interface):
+            log.error(
+                "The network interface '%s' configured for this analysis is "
+                "not available at the moment, switching to route=none mode.",
+                self.interface
+            )
+            route = "none"
+            self.task.options["route"] = "none"
+            self.interface = None
+            self.rt_table = None
 
         if self.interface:
             rooter("forward_enable", self.machine.interface,
                    self.interface, self.machine.ip)
+
+        if self.rt_table:
+            rooter("srcroute_enable", self.rt_table, self.machine.ip)
 
         # Propagate the taken route to the database.
         self.db.set_route(self.task.id, route)
@@ -226,6 +246,9 @@ class AnalysisManager(threading.Thread):
         if self.interface:
             rooter("forward_disable", self.machine.interface,
                    self.interface, self.machine.ip)
+
+        if self.rt_table:
+            rooter("srcroute_disable", self.rt_table, self.machine.ip)
 
     def wait_finish(self):
         """Some VMs don't have an actual agent. Mainly those that are used as

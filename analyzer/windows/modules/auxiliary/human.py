@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # Copyright (C) 2010-2013 Claudio Guarnieri.
-# Copyright (C) 2014-2015 Cuckoo Foundation.
+# Copyright (C) 2014-2016 Cuckoo Foundation.
 # This file is part of Cuckoo Sandbox - http://www.cuckoosandbox.org
 # See the file 'docs/LICENSE' for copying permission.
 
@@ -27,18 +27,21 @@ RESOLUTION = {
 def foreach_child(hwnd, lparam):
     # List of buttons labels to click.
     buttons = [
-        "yes",
+        "yes", "oui",
         "ok",
-        "accept",
-        "next",
-        "install",
+        "accept", "accepter",
+        "next", "suivant",
+        "install", "installer",
         "run",
-        "agree",
-        "enable",
-        "don't send",
-        "continue",
-        "unzip",
-        "open",
+        "agree", "j'accepte",
+        "enable", "activer",
+        "don't send", "ne pas envoyer",
+        "continue", "continuer",
+        "unzip", "dezip",
+        "open", "ouvrir",
+        "execute", "executer",
+        "launch", "lancer",
+        "save", "sauvegarder"
     ]
 
     # List of buttons labels to not click.
