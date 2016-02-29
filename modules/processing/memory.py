@@ -143,7 +143,6 @@ class VolatilityAPI(object):
         @see volatility/plugins/malware/psxview.py
         """
         results = []
-
         command = self.plugins["psxview"](self.config)
         for offset, process, ps_sources in command.calculate():
             new = {
@@ -159,7 +158,6 @@ class VolatilityAPI(object):
             }
 
             results.append(new)
-
         return dict(config={}, data=results)
 
     def callbacks(self):

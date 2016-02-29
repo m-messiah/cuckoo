@@ -454,6 +454,9 @@ class GuestManager(object):
 
             if status["status"] == "complete":
                 log.info("%s: analysis completed successfully", self.vmid)
+                # TODO: dirty-hack for non-rooter system
+                import subprocess
+                subprocess.Popen("vboxmanage hostonlyif ipconfig vboxnet0 --ip 10.31.37.1 --netmask 255.255.255.0".split())
                 return
             elif status["status"] == "exception":
                 log.info("%s: analysis caught an exception\n%s",

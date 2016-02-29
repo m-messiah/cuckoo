@@ -137,41 +137,36 @@ def sendClamAV(filename, help_text, email, name):
 
 def sendMicrosoft(filename, help_text, email, name):
     br = Session()
-    hostUrl = "https://www.microsoft.com/security/portal/submission/submit.aspx"
+    hostUrl = "https://www.microsoft.com/en-us/security/portal/submission/submit.aspx"
     br.headers.update({'referer': hostUrl})
     page = br.get(hostUrl)
 
     br.get("http://c.microsoft.com/trans_pixel.aspx")  # get additional cookies
 
     page = BeautifulSoup(page.text, 'html.parser')
-    form = page.find('form', id='aspnetForm')
+    form = page.find('form', id='Newsubmission')
 
     form_data = dict([(el['name'], el.get('value', None))
                       for el in form.find_all('input') if el.has_attr('name')])
 
-    form_data["ctl00$ctl00$pageContent$leftside$submitterName"] = email
-    form_data["ctl00$ctl00$pageContent$leftside$incorrectDetectionRb"] = "Malware"
-    form_data["ctl00$ctl00$pageContent$leftside$submissionComments"] = help_text
-    form_data["ctl00$ctl00$pageContent$leftside$productSelection"] = 0
-    form_data["ctl00$ctl00$Header$oneMscomBlade$ctl04$Src_Source"] = 0
-    form_data["ctl00$ctl00$pageContent$leftside$submitButton"] = "Submit sample"
-    form_data["ctl00$ctl00$Header$oneMscomBlade$ctl04$SearchTextBox"] = ""
-    form_data["__EVENTTARGET"] = ""
-    form_data["__EVENTARGUMENT"] = ""
+    form_data["Name"] = email
+    form_data["Product"] = "Windows Server Antimalware"
+    form_data["Comments"] = help_text
+    form_data["Priority"] = 2
 
     response = br.post(
         hostUrl, data=form_data,
-        files={u'ctl00$ctl00$pageContent$leftside$submissionFile':
+        files={u'File':
                open(filename, 'rb')})
-    response_url = response.url
 
     text = response.text.encode('utf-8')
 
-    if text.find("This sample contains the following files") != -1:
-        return 0, "Success! Your status is <a href='%s'>here</a>" % (response_url)
-    elif text.find('<title>Submit Sample - Maximum file size exceeded</title>') != -1:
-        logger.warning("Microsoft error: Maximum file size exceeded")
-        return 1, "Maximum file size exceeded"
+    result = text.find('window.location.href="SubmissionHistory.aspx')
+    if result != -1:
+        sub_url = text[result + 44:]
+        sub_url = "/SubmissionHistory.aspx" + sub_url[:sub_url.find('"')]
+        url = response.url[:response.url.rfind('/')] + sub_url
+        return 0, "Success! Your status is <a href='%s'>here</a>" % url
     else:
         logger.warning("Microsoft error: %s" % text)
         return 1, "Something wrong: %s" % text

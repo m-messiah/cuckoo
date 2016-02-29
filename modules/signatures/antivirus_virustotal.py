@@ -27,6 +27,8 @@ class KnownVirustotal(Signature):
         if "virustotal" in self.results:
             if "positives" in self.results["virustotal"]:
                 if self.results["virustotal"]["positives"] > 0:
+                    global severity
+                    severity = self.results["virustotal"]["positives"]
                     return True
 
         return False

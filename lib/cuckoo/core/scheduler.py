@@ -412,7 +412,6 @@ class AnalysisManager(threading.Thread):
             # After all this, we can make the ResultServer forget about the
             # internal state for this analysis task.
             ResultServer().del_task(self.task, self.machine)
-
             # Drop the network routing rules if any.
             self.unroute_network()
 
@@ -482,7 +481,6 @@ class AnalysisManager(threading.Thread):
             if self.cfg.cuckoo.process_results:
                 self.process_results()
                 self.db.set_status(self.task.id, TASK_REPORTED)
-
             # We make a symbolic link ("latest") which links to the latest
             # analysis - this is useful for debugging purposes. This is only
             # supported under systems that support symbolic links.

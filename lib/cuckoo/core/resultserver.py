@@ -133,7 +133,7 @@ class ResultHandler(SocketServer.BaseRequestHandler):
         self.done_event = Event()
         self.pid, self.ppid, self.procname = None, None, None
         self.server.register_handler(self)
-
+        
         if hasattr(select, "poll"):
             self.poll = select.poll()
             self.poll.register(self.request, select.POLLIN)
