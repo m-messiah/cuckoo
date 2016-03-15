@@ -21,5 +21,6 @@ install:
     - pip install -r requirements.txt
     - ./utils/community.py -wafb monitor && ./utils/community.py -wafb 2.0
 script:
+    - ls -la
     - python cuckoo.py --debug --test
     #- nosetests
