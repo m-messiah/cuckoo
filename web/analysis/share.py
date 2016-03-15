@@ -10,7 +10,7 @@ from email.utils import formatdate
 import smtplib
 import logging
 
-logger = logging.getLogger('av_report')
+logger = logging.getLogger('av_share')
 
 
 def sendKaspersky(filename, help_text, email, name):
@@ -94,45 +94,27 @@ def sendEset(filename, help_text, email, name):
 
 def sendClamAV(filename, help_text, email, name):
     br = Session()
-    hostUrl = "http://www.clamav.net"
+    hostUrl = "https://www.clamav.net"
     page = br.get(hostUrl + "/reports/malware")
     page = BeautifulSoup(page.text, 'html.parser')
 
-    for _ in range(5):
-        credentials = br.get(hostUrl + "/presigned")
-        if credentials.status_code == 200:
-            credentials = credentials.json()
-            break
-        import time
-        time.sleep(5)
-        
-    submissionid = credentials["key"].split("/")[1].split("-")[0]
-    form_s3 = page.find('form', id='s3Form')
-    s3_url = form_s3['action']
-    form_s3_data = dict([(el['name'], el.get('value', None))
-                         for el in form_s3.find_all('input')])
-    
-    form_s3_data.update(credentials)
-
-    s3_answer = br.post(s3_url, data=form_s3_data,
-                        files={'file': open(filename, 'rb')})
-    if s3_answer.status_code > 210:
-        return 1, "Something wrong. s3 status = %s" % s3_answer.status_code
-
-    form = page.find('form', id='fileData')
+    form = page.find('form', action='/reports/submit')
     form_data = dict([(el['name'], el.get('value', None))
-                      for el in form.find_all('input')[:-1]])
-    form_data['submissionID'] = submissionid
+                      for el in form.find_all('input')])
     form_data['sendername'] = email[:email.find("@")]
     form_data['email'] = email
+    form_data['description'] = help_text
+    form_data['notify'] = 'on'
+    form_data['shareSample'] = 'on'
 
-    response = br.post(hostUrl + form['action'], data=form_data)
-
+    response = br.post(hostUrl + form['action'],
+                       data=form_data,
+                       files={u'file': open(filename, 'rb')})
     if "Report Submitted" in response.text:
         return 0, "Success!"
     else:
-        logger.warning("ClamAV error: %s" % response.text)
-        return 1, "Something went wrong"
+        logger.warning("ClamAV error: %s - %s" % (response.status_code, response.text))
+        return 1, "Something went wrong: %s" % response.status_code
 
 
 def sendMicrosoft(filename, help_text, email, name):

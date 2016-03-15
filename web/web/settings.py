@@ -190,6 +190,10 @@ LOGGING = {
             'filters': ['require_debug_false'],
             'class': 'django.utils.log.AdminEmailHandler'
         },
+        'stdout': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+        },
         # Log django request to log file. Uncomment to enable.
         # 'log_file': {
         #     'level': 'DEBUG',
@@ -204,6 +208,10 @@ LOGGING = {
             'handlers': ['mail_admins'],
             'level': 'ERROR',
             'propagate': True,
+        },
+        'av_share': {
+            'handlers': ['stdout'],
+            'level': 'INFO',
         },
         # Log django request to log file. Uncomment to enable.
         # 'django.request': {
